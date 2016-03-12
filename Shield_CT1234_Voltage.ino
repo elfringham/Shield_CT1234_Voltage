@@ -58,7 +58,8 @@ const int LEDpin = 9;                                                   // On-bo
 #define ONE_WIRE_BUS 4
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
-DeviceAddress insideThermometer;
+DeviceAddress caseThermometer;
+DeviceAddress remoteThermometer;
 
 boolean settled = false;
 
@@ -156,16 +157,22 @@ void setup()
   Serial.print("Found ");
   Serial.print(sensors.getDeviceCount(), DEC);
   Serial.println(" devices.");
-  if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Device 0"); 
+  if (!sensors.getAddress(caseThermometer, 0)) Serial.println("Unable to find address for Device 0"); 
   Serial.print("Device 0 Address: ");
-  printAddress(insideThermometer);
+  printAddress(caseThermometer);
   Serial.println();
   // set the resolution to 11 bits (Each Dallas/Maxim device is capable of several different resolutions)
-  sensors.setResolution(insideThermometer, 11);
- 
-  Serial.print("Device 0 Resolution: ");
-  Serial.print(sensors.getResolution(insideThermometer), DEC); 
+  sensors.setResolution(caseThermometer, 11);
+  if (!sensors.getAddress(remoteThermometer, 1)) Serial.println("Unable to find address for Device 1"); 
+  Serial.print("Device 1 Address: ");
+  printAddress(remoteThermometer);
   Serial.println();
+  // set the resolution to 11 bits (Each Dallas/Maxim device is capable of several different resolutions)
+  sensors.setResolution(remoteThermometer, 11);
+ 
+  //Serial.print("Device 0 Resolution: ");
+  //Serial.print(sensors.getResolution(insideThermometer), DEC); 
+  //Serial.println();
 }
 
 void loop() 
@@ -208,7 +215,8 @@ void loop()
     send_rf_data();                                                       // *SEND RF DATA* - see emontx_lib
     sensors.requestTemperatures();
     delay(1000);
-    emontx.temp1 = sensors.getTempC(insideThermometer);
+    emontx.temp1 = sensors.getTempC(caseThermometer);
+    emontx.temp1 = sensors.getTempC(remoteThermometer);
     Serial.print("Temperature measured is ");
     Serial.println(emontx.temp1);
     send_temp_data();

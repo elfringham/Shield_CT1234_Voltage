@@ -38,6 +38,10 @@ void send_rf_data()
     //Serial.println();
     SRF.write((const unsigned char *)msg, 12);
   }
+  snprintf(msg, 13, "a%c%cVOLT%05d", PANID[0], PANID[1], emontx.Vrms);
+  //Serial.print(msg);
+  //Serial.println();
+  SRF.write((const unsigned char *)msg, 12);
   //Serial.println("Leaving send_rf_data");
 }
 
@@ -54,10 +58,15 @@ void send_temp_data()
     //Serial.write(recv);
   }
   Serial.println();
-  Serial.print("Received temp ");
-  Serial.println(i);
+  //Serial.print("Received temp ");
+  //Serial.println(i);
   rem = (int)((int)(emontx.temp1 * 10 + 0.5) % 10);
-  snprintf(msg, 13, "a%c%cTEMP%03d.%d", PANID[0], PANID[1], (int)emontx.temp1, abs(rem));
+  snprintf(msg, 13, "a%c%cTPDA%03d.%d", PANID[0], PANID[1], (int)emontx.temp1, abs(rem));
+  //Serial.print(msg);
+  //Serial.println();
+  SRF.write((const unsigned char *)msg, 12);
+  rem = (int)((int)(emontx.temp2 * 10 + 0.5) % 10);
+  snprintf(msg, 13, "a%c%cTPDB%03d.%d", PANID[0], PANID[1], (int)emontx.temp2, abs(rem));
   //Serial.print(msg);
   //Serial.println();
   SRF.write((const unsigned char *)msg, 12);
