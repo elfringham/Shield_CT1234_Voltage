@@ -8,7 +8,7 @@
  Licence: GNU GPL V3
  
  Authors: Glyn Hudson, Trystan Lea
- Builds upon JeeLabs RF12 library and Arduino
+ Builds upon Ciseco SRFSPI library and Arduino
  
  emonTx documentation: 	http://openenergymonitor.org/emon/modules/emontxshield/
  emonTx firmware code explination: http://openenergymonitor.org/emon/modules/emontx/firmware
@@ -17,7 +17,7 @@
  THIS SKETCH REQUIRES:
 
  Libraries in the standard arduino libraries folder:
-	- JeeLib		https://github.com/jcw/jeelib
+	- SRFSPI		https://github.com/CisecoPlc/SRFSPI
 	- EmonLib		https://github.com/openenergymonitor/EmonLib.git
 
  Other files in project directory (should appear in the arduino tabs above)
@@ -25,76 +25,64 @@
  
 */
 
-/*Recommended node ID allocation
-------------------------------------------------------------------------------------------------------------
--ID-	-Node Type- 
-0	- Special allocation in JeeLib RFM12 driver - reserved for OOK use
-1-4     - Control nodes 
-5-10	- Energy monitoring nodes
-11-14	--Un-assigned --
-15-16	- Base Station & logging nodes
-17-30	- Environmental sensing nodes (temperature humidity etc.)
-31	- Special allocation in JeeLib RFM12 driver - Node31 can communicate with nodes on any network group
--------------------------------------------------------------------------------------------------------------
+#include <OneWire.h>
+#include <DallasTemperature.h>
 
-emonhub.conf node decoder:
-See: https://github.com/openenergymonitor/emonhub/blob/emon-pi/configuration.md
-
-[[6]]
-    nodename = emonTxShield
-    firmware =emonTxShield
-    hardware = emonTxShield
-    [[[rx]]]
-       names = power1, power2, power3, power4, Vrms
-       datacode = h
-       scales = 1,1,1,1,0.01
-       units =W,W,W,W,V
-       
-*/
-
-#define FILTERSETTLETIME 5000                                           //  Time (ms) to allow the filters to settle before sending data
+#define FILTERSETTLETIME 10000                                          //  Time (ms) to allow the filters to settle before sending data
 
 const int CT1 = 1; 
-const int CT2 = 1;                                                      // Set to 0 to disable 
-const int CT3 = 1;
-const int CT4 = 1;
+const int CT2 = 0;                                                      // Set to 0 to disable 
+const int CT3 = 0;
+const int CT4 = 0;
 
-
-#define RF_freq RF12_433MHZ                                                // Frequency of RF12B module can be RF12_433MHZ, RF12_868MHZ or RF12_915MHZ. You should use the one matching the module you have.
-const int nodeID = 6;                                                  // emonTx RFM12B node ID
-const int networkGroup = 210;                                           // emonTx RFM12B wireless network group - needs to be same as emonBase and emonGLCD                                                 
-
-#define RF69_COMPAT 0 // set to 1 to use RFM69CW 
-#include <JeeLib.h>   // make sure V12 (latest) is used if using RFM69CW
+#include <SPI.h>
+#include <SRFSPI.h>
 #include "EmonLib.h"
 EnergyMonitor ct1,ct2,ct3, ct4;                                              // Create  instances for each CT channel
 
-// Note: Please update emonhub configuration guide on OEM wide packet structure change:
-// https://github.com/openenergymonitor/emonhub/blob/emon-pi/configuration.md
-typedef struct { int power1, power2, power3, power4, Vrms;} PayloadTX;      // create structure - a neat way of packaging data for RF comms
-PayloadTX emontx;                                                       
+typedef struct {
+  int power1;
+  int power2;
+  int power3;
+  int power4;
+  float temp1;
+  float temp2;
+  int Vrms;
+} PayloadTX;
+
+PayloadTX emontx;
+uint8_t PANID[2];
 
 const int LEDpin = 9;                                                   // On-board emonTx LED 
 
+#define ONE_WIRE_BUS 4
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
+DeviceAddress insideThermometer;
+
 boolean settled = false;
+
+// function to print a device address
+void printAddress(DeviceAddress deviceAddress)
+{
+  for (uint8_t i = 0; i < 8; i++)
+  {
+    if (deviceAddress[i] < 16) Serial.print("0");
+    Serial.print(deviceAddress[i], HEX);
+  }
+}
 
 void setup() 
 {
+  uint8_t rxbuf[64];
+  char msg[48];
+  unsigned int i, retries = 10;
   Serial.begin(9600);
    //while (!Serial) {
     ; // wait for serial port to connect. Needed for Leonardo only
   
-  Serial.println("emonTX Shield CT123 Voltage example"); 
+  Serial.println("emonTX Shield CT1234 with SRF Voltage example"); 
   Serial.println("OpenEnergyMonitor.org");
-  Serial.print("Node: "); 
-  Serial.print(nodeID); 
-  Serial.print(" Freq: "); 
-  if (RF_freq == RF12_433MHZ) Serial.print("433Mhz");
-  if (RF_freq == RF12_868MHZ) Serial.print("868Mhz");
-  if (RF_freq == RF12_915MHZ) Serial.print("915Mhz"); 
- Serial.print(" Network: "); 
-  Serial.println(networkGroup);
-  // }
    
   if (CT1) ct1.current(1, 60.606);                                     // Setup emonTX CT channel (ADC input, calibration)
   if (CT2) ct2.current(2, 60.606);                                     // Calibration factor = CT ratio / burden resistance
@@ -106,13 +94,78 @@ void setup()
   if (CT3) ct3.voltage(0, 268.97, 1.7);
   if (CT4) ct4.voltage(0, 268.97, 1.7);
   
-  rf12_initialize(nodeID, RF_freq, networkGroup);                          // initialize RFM12B
-  rf12_sleep(RF12_SLEEP);
+  SRF.init(10);
+  PANID[0] = 'P';
+  PANID[1] = 'M';
 
   pinMode(LEDpin, OUTPUT);                                              // Setup indicator LED
   digitalWrite(LEDpin, HIGH);
+  while(retries--) {
+    i = 0;
+    delay(1100);
+    SRF.write((uint8_t *)"+++", 3);
+    delay(1000);
+    while(!SRF.available() && i < 1000) {
+      delay(10);
+      i++;
+    }
+    i = 0;
+    while(SRF.available()) {
+      rxbuf[i % 64] = SRF.read();
+      i++;
+    }
+    if ((i == 3) && rxbuf[0] == 'O' && rxbuf[1] == 'K') {
+      //Serial.println("Got OK back successfully");
+      SRF.write((uint8_t *)"ATMY\r", 5);
+      i = 0;
+      while(!SRF.available() && i < 1000) {
+        delay(10);
+        i++;
+      }
+      i = 0;
+      while(SRF.available()) {
+        rxbuf[i % 64] = SRF.read();
+        i++;
+        //Serial.write(rxbuf[i-1]);
+        //if (rxbuf[i-1] == '\r') Serial.write('\n');
+      }
+      if ((i == 6) && rxbuf[3] == 'O' && rxbuf[4] == 'K') {
+        snprintf(msg, 48, "ATMY returned OK and set PANID to '%c%c'", rxbuf[0], rxbuf[1]);
+        Serial.println(msg);
+        PANID[0] = rxbuf[0];
+        PANID[1] = rxbuf[1];
+        retries = 0;
+      } else {
+        snprintf(msg, 48, "Got back i = %d", i);
+        Serial.println(msg);
+      }
+    } else {
+      snprintf(msg, 48, "Got back i = %d and response '%c' '%c'", i, rxbuf[0], rxbuf[1]);
+      Serial.println(msg);
+    }
+    SRF.write((uint8_t *)"ATDN\r", 5);
+    delay(100);
+    i = 0;
+    while(SRF.available()) {
+      rxbuf[i % 64] = SRF.read();
+      i++;
+    }
+  }
   
-                                                                                     
+  sensors.begin();
+  Serial.print("Found ");
+  Serial.print(sensors.getDeviceCount(), DEC);
+  Serial.println(" devices.");
+  if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Device 0"); 
+  Serial.print("Device 0 Address: ");
+  printAddress(insideThermometer);
+  Serial.println();
+  // set the resolution to 11 bits (Each Dallas/Maxim device is capable of several different resolutions)
+  sensors.setResolution(insideThermometer, 11);
+ 
+  Serial.print("Device 0 Resolution: ");
+  Serial.print(sensors.getResolution(insideThermometer), DEC); 
+  Serial.println();
 }
 
 void loop() 
@@ -153,7 +206,13 @@ void loop()
   if (settled)                                                            // send data only after filters have settled
   { 
     send_rf_data();                                                       // *SEND RF DATA* - see emontx_lib
+    sensors.requestTemperatures();
+    delay(1000);
+    emontx.temp1 = sensors.getTempC(insideThermometer);
+    Serial.print("Temperature measured is ");
+    Serial.println(emontx.temp1);
+    send_temp_data();
     digitalWrite(LEDpin, HIGH); delay(2); digitalWrite(LEDpin, LOW);      // flash LED
-    delay(2000);                                                          // delay between readings in ms
+    delay(1000);                                                          // delay between readings in ms
   }
 }
