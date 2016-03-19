@@ -1,15 +1,15 @@
 /*
  emonTx Shield 4 x CT + Voltage example
- 
+
  An example sketch for the emontx Arduino shield module for
- CT and AC voltage sample electricity monitoring. Enables real power and Vrms calculations. 
- 
+ CT and AC voltage sample electricity monitoring. Enables real power and Vrms calculations.
+
  Part of the openenergymonitor.org project
  Licence: GNU GPL V3
- 
+
  Authors: Glyn Hudson, Trystan Lea
  Builds upon Ciseco SRFSPI library and Arduino
- 
+
  emonTx documentation: 	http://openenergymonitor.org/emon/modules/emontxshield/
  emonTx firmware code explination: http://openenergymonitor.org/emon/modules/emontx/firmware
  emonTx calibration instructions: http://openenergymonitor.org/emon/modules/emontx/firmware/calibration
@@ -22,7 +22,7 @@
 
  Other files in project directory (should appear in the arduino tabs above)
 	- emontx_lib.ino
- 
+
 */
 
 #include <OneWire.h>
@@ -30,8 +30,8 @@
 
 #define FILTERSETTLETIME 10000                                          //  Time (ms) to allow the filters to settle before sending data
 
-const int CT1 = 1; 
-const int CT2 = 0;                                                      // Set to 0 to disable 
+const int CT1 = 1;
+const int CT2 = 0;                                                      // Set to 0 to disable
 const int CT3 = 0;
 const int CT4 = 0;
 
@@ -73,7 +73,7 @@ void printAddress(DeviceAddress deviceAddress)
   }
 }
 
-void setup() 
+void setup()
 {
   uint8_t rxbuf[64];
   char msg[48];
@@ -81,20 +81,20 @@ void setup()
   Serial.begin(9600);
    //while (!Serial) {
     ; // wait for serial port to connect. Needed for Leonardo only
-  
-  Serial.println("emonTX Shield CT1234 with SRF Voltage example"); 
+
+  Serial.println("emonTX Shield CT1234 with SRF Voltage example");
   Serial.println("OpenEnergyMonitor.org");
-   
+
   if (CT1) ct1.current(1, 60.606);                                     // Setup emonTX CT channel (ADC input, calibration)
   if (CT2) ct2.current(2, 60.606);                                     // Calibration factor = CT ratio / burden resistance
   if (CT3) ct3.current(3, 60.606);                                     // emonTx Shield Calibration factor = (100A / 0.05A) / 33 Ohms
-  if (CT4) ct4.current(4, 60.606); 
-  
-  if (CT1) ct1.voltage(0, 268.97, 1.7);                                // ct.voltageTX(ADC input, calibration, phase_shift) - make sure to select correct calibration for AC-AC adapter  http://openenergymonitor.org/emon/modules/emontx/firmware/calibration. Default set for Ideal Power adapter                                         
+  if (CT4) ct4.current(4, 60.606);
+
+  if (CT1) ct1.voltage(0, 268.97, 1.7);                                // ct.voltageTX(ADC input, calibration, phase_shift) - make sure to select correct calibration for AC-AC adapter  http://openenergymonitor.org/emon/modules/emontx/firmware/calibration. Default set for Ideal Power adapter
   if (CT2) ct2.voltage(0, 268.97, 1.7);                                // 268.97 for the UK adapter, 260 for the Euro and 130 for the US.
   if (CT3) ct3.voltage(0, 268.97, 1.7);
   if (CT4) ct4.voltage(0, 268.97, 1.7);
-  
+
   SRF.init(10);
   PANID[0] = 'P';
   PANID[1] = 'M';
@@ -152,71 +152,71 @@ void setup()
       i++;
     }
   }
-  
+
   sensors.begin();
   Serial.print("Found ");
   Serial.print(sensors.getDeviceCount(), DEC);
   Serial.println(" devices.");
-  if (!sensors.getAddress(caseThermometer, 0)) Serial.println("Unable to find address for Device 0"); 
+  if (!sensors.getAddress(caseThermometer, 0)) Serial.println("Unable to find address for Device 0");
   Serial.print("Device 0 Address: ");
   printAddress(caseThermometer);
   Serial.println();
   // set the resolution to 11 bits (Each Dallas/Maxim device is capable of several different resolutions)
   sensors.setResolution(caseThermometer, 11);
-  if (!sensors.getAddress(remoteThermometer, 1)) Serial.println("Unable to find address for Device 1"); 
+  if (!sensors.getAddress(remoteThermometer, 1)) Serial.println("Unable to find address for Device 1");
   Serial.print("Device 1 Address: ");
   printAddress(remoteThermometer);
   Serial.println();
   // set the resolution to 11 bits (Each Dallas/Maxim device is capable of several different resolutions)
   sensors.setResolution(remoteThermometer, 11);
- 
+
   //Serial.print("Device 0 Resolution: ");
-  //Serial.print(sensors.getResolution(insideThermometer), DEC); 
+  //Serial.print(sensors.getResolution(insideThermometer), DEC);
   //Serial.println();
 }
 
-void loop() 
-{ 
+void loop()
+{
   if (CT1) {
-    ct1.calcVI(20,2000);                                                  // Calculate all. No.of crossings, time-out 
+    ct1.calcVI(20,2000);                                                  // Calculate all. No.of crossings, time-out
     emontx.power1 = ct1.realPower;
-    Serial.print(emontx.power1);                                         
+    Serial.print(emontx.power1);
   }
-  
-  emontx.Vrms = ct1.Vrms*100;                                            // AC Mains rms voltage 
-  
+
+  emontx.Vrms = ct1.Vrms*100;                                            // AC Mains rms voltage
+
   if (CT2) {
-    ct2.calcVI(20,2000);                                                  // Calculate all. No.of crossings, time-out 
+    ct2.calcVI(20,2000);                                                  // Calculate all. No.of crossings, time-out
     emontx.power2 = ct2.realPower;
     Serial.print(" "); Serial.print(emontx.power2);
-  } 
+  }
 
   if (CT3) {
-    ct3.calcVI(20,2000);                                                  // Calculate all. No.of crossings, time-out 
+    ct3.calcVI(20,2000);                                                  // Calculate all. No.of crossings, time-out
     emontx.power3 = ct3.realPower;
     Serial.print(" "); Serial.print(emontx.power3);
-  } 
-  
+  }
+
    if (CT4) {
-     ct4.calcVI(20,2000);                                                  // Calculate all. No.of crossings, time-out 
+     ct4.calcVI(20,2000);                                                  // Calculate all. No.of crossings, time-out
     emontx.power4 = ct4.realPower;
     Serial.print(" "); Serial.print(emontx.power4);
-  } 
-  
+  }
+
   Serial.print(" "); Serial.print(ct1.Vrms);
-  
+
   Serial.println(); delay(100);
 
-  // because millis() returns to zero after 50 days ! 
+  // because millis() returns to zero after 50 days !
   if (!settled && millis() > FILTERSETTLETIME) settled = true;
 
   if (settled)                                                            // send data only after filters have settled
-  { 
+  {
     send_rf_data();                                                       // *SEND RF DATA* - see emontx_lib
     sensors.requestTemperatures();
     delay(1000);
     emontx.temp1 = sensors.getTempC(caseThermometer);
-    emontx.temp1 = sensors.getTempC(remoteThermometer);
+    emontx.temp2 = sensors.getTempC(remoteThermometer);
     Serial.print("Temperature measured is ");
     Serial.println(emontx.temp1);
     send_temp_data();
