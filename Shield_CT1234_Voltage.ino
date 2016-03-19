@@ -37,6 +37,7 @@ const int CT4 = 0;
 
 #include <SPI.h>
 #include <SRFSPI.h>
+#define READVCC_CALIBRATION_CONST 1097280L
 #include "EmonLib.h"
 EnergyMonitor ct1,ct2,ct3, ct4;                                              // Create  instances for each CT channel
 
