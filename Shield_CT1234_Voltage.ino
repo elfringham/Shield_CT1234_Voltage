@@ -37,6 +37,7 @@ const int CT4 = 0;
 
 #include <SPI.h>
 #include <SRFSPI.h>
+#include <avr/wdt.h>
 #define READVCC_CALIBRATION_CONST 1097280L
 #include "EmonLib.h"
 EnergyMonitor ct1,ct2,ct3, ct4;                                              // Create  instances for each CT channel
@@ -54,7 +55,9 @@ typedef struct {
 PayloadTX emontx;
 uint8_t PANID[2];
 
-const int LEDpin = 9;                                                   // On-board emonTx LED 
+const int LEDpin = 9;                                                   // On-board emonTx LED
+const int RESETpin = 8;                                                 // Reset SRF module
+static int nOK = 0;
 
 #define ONE_WIRE_BUS 4
 OneWire oneWire(ONE_WIRE_BUS);
@@ -79,6 +82,8 @@ void setup()
   uint8_t rxbuf[64];
   char msg[48];
   unsigned int i, retries = 10;
+  wdt_disable();
+
   Serial.begin(9600);
    //while (!Serial) {
     ; // wait for serial port to connect. Needed for Leonardo only
@@ -100,6 +105,8 @@ void setup()
   PANID[0] = 'P';
   PANID[1] = 'M';
 
+  pinMode(RESETpin, INPUT);
+  digitalWrite(RESETpin, LOW);
   pinMode(LEDpin, OUTPUT);                                              // Setup indicator LED
   digitalWrite(LEDpin, HIGH);
   while(retries--) {
@@ -193,13 +200,28 @@ void check_SRF(void)
     i++;
   }
   if ((i != 3) || rxbuf[0] != 'O' || rxbuf[1] != 'K') {
-    Serial.println("Could not get OK from SRF");
-  }
-  SRF.write((uint8_t *)"ATDN\r", 5);
-  i = 0;
-  while(!SRF.available() && i < 1000) {
-    delay(10);
-    i++;
+    nOK++;
+    if (nOK > 5) {
+      Serial.println("Could not get OK from SRF, resetting");
+      delay(100);
+      wdt_enable(WDTO_1S);
+      pinMode(RESETpin, OUTPUT);
+      delay(10);
+      pinMode(RESETpin, INPUT);
+      delay(100);
+      wdt_disable();
+      Serial.println("Done reset of SRF, no watchdog fired");
+    } else {
+      Serial.println("Did not get OK from SRF");
+    }
+  } else {
+    nOK = 0;
+    SRF.write((uint8_t *)"ATDN\r", 5);
+    i = 0;
+    while(!SRF.available() && i < 1000) {
+      delay(10);
+      i++;
+    }
   }
   i = 0;
   while(SRF.available()) {
