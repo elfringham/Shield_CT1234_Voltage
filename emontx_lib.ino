@@ -12,7 +12,7 @@ void send_rf_data()
     //Serial.write(recv);
   }
   Serial.println();
-  Serial.print("Received pwr ");
+  Serial.print("Received characters ");
   Serial.println(i);
   if (CT1) {
     snprintf(msg, 13, "a%c%cPWRA%05d", PANID[0], PANID[1], emontx.power1);

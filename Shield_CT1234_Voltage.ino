@@ -176,6 +176,38 @@ void setup()
   //Serial.println();
 }
 
+void check_SRF(void)
+{
+  uint8_t rxbuf[8];
+  unsigned int i = 0;
+  delay(100);
+  SRF.write((uint8_t *)"+++", 3);
+  delay(1000);
+  while(!SRF.available() && i < 1000) {
+    delay(10);
+    i++;
+  }
+  i = 0;
+  while(SRF.available()) {
+    rxbuf[i % 8] = SRF.read();
+    i++;
+  }
+  if ((i != 3) || rxbuf[0] != 'O' || rxbuf[1] != 'K') {
+    Serial.println("Could not get OK from SRF");
+  }
+  SRF.write((uint8_t *)"ATDN\r", 5);
+  i = 0;
+  while(!SRF.available() && i < 1000) {
+    delay(10);
+    i++;
+  }
+  i = 0;
+  while(SRF.available()) {
+    rxbuf[i % 8] = SRF.read();
+    i++;
+  }
+}
+
 void loop()
 {
   if (CT1) {
@@ -223,5 +255,6 @@ void loop()
     send_temp_data();
     digitalWrite(LEDpin, HIGH); delay(2); digitalWrite(LEDpin, LOW);      // flash LED
     delay(1000);                                                          // delay between readings in ms
+    check_SRF();
   }
 }
